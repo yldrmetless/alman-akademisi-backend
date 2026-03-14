@@ -33,7 +33,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
-            user_type='student'
+            user_type='admin'
         )
         return user
     
