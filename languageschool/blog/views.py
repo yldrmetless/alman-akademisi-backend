@@ -2,10 +2,23 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from blog.serializers import BlogPostCreateSerializer, BlogPostListSerializer, BlogEditSerializer, CategoryCreateSerializer, CategoryListSerializer, CategoryUpdateSerializer
-from blog.models import BlogPost, Category
+from blog.serializers import (
+    BlogPostCreateSerializer,
+    BlogPostListSerializer,
+    BlogEditSerializer,
+    CategoryCreateSerializer,
+    CategoryListSerializer,
+    CategoryUpdateSerializer,
+    CourseGalleryCreateSerializer,
+    CourseGalleryListSerializer,
+    WebPageContentCreateSerializer,
+    WebPageContentListSerializer,
+    CertificateCreateSerializer,
+    CertificateListSerializer
+)
+from blog.models import BlogPost, Category, CertificateImage, CourseGalleryImage, WebPageModel
 from users.permissions import IsAdminUserType
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListAPIView, RetrieveAPIView
 from blog.models import BlogPost, BlogViewCount
 from blog.paginations import Pagination10
 from django.db.models import F
@@ -183,3 +196,139 @@ class BlogEditAPIView(APIView):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class WebPageContentCreate(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUserType]
+
+    def post(self, request):
+        serializer = WebPageContentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        webpage = serializer.save()
+
+        return Response({
+            "status": 201,
+            "message": "Web page content created successfully.",
+            "id": webpage.id
+        }, status=201)
+        
+
+class WebPageContentListAPIView(ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = WebPageContentListSerializer
+    pagination_class = Pagination10
+
+    def get_queryset(self):
+        queryset = WebPageModel.objects.filter(is_deleted=False)
+
+        type_filter = self.request.query_params.get("type")
+        ordering = self.request.query_params.get("ordering", "-created_at")
+
+        if type_filter:
+            queryset = queryset.filter(type=type_filter)
+
+        if ordering not in ["created_at", "-created_at"]:
+            ordering = "-created_at"
+
+        return queryset.order_by(ordering)
+    
+
+class WebPageContentDetailAPIView(RetrieveAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = WebPageContentListSerializer
+    lookup_field = "id"
+
+    def get_queryset(self):
+        return WebPageModel.objects.filter(is_deleted=False)
+    
+
+class CourseGalleryCreate(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUserType]
+
+    def post(self, request):
+        gallery_data = request.data.get("images", [])
+
+        if not isinstance(gallery_data, list):
+            return Response(
+                {"status": 400, "message": "images must be a list"},
+                status=400
+            )
+
+        CourseGalleryImage.objects.filter(is_deleted=False).update(is_deleted=True)
+
+        serializer = CourseGalleryCreateSerializer(data=gallery_data, many=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "status": 201,
+                "message": "Gallery images updated successfully"
+            },
+            status=201
+        )
+        
+
+class CourseGalleryListAPIView(APIView):
+    permission_classes = [AllowAny]
+    pagination_class = Pagination10
+
+    def get(self, request):
+        queryset = CourseGalleryImage.objects.filter(is_deleted=False).order_by("-created_at")
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+
+        if page is not None:
+            serializer = CourseGalleryListSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = CourseGalleryListSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+
+
+class CertificateCreate(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUserType]
+
+    def post(self, request):
+        gallery_data = request.data.get("images", [])
+
+        if not isinstance(gallery_data, list):
+            return Response(
+                {"status": 400, "message": "images must be a list"},
+                status=400
+            )
+
+        CertificateImage.objects.filter(is_deleted=False).update(is_deleted=True)
+
+        serializer = CertificateCreateSerializer(data=gallery_data, many=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "status": 201,
+                "message": "Gallery images updated successfully"
+            },
+            status=201
+        )
+        
+
+class CertificateListAPIView(APIView):
+    permission_classes = [AllowAny]
+    pagination_class = Pagination10
+
+    def get(self, request):
+        queryset = CertificateImage.objects.filter(is_deleted=False).order_by("-created_at")
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+
+        if page is not None:
+            serializer = CertificateListSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = CertificateListSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

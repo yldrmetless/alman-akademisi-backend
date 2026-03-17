@@ -239,7 +239,7 @@ class SupportSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'message', 'image_url', 'image_url_id', 
             'priority', 'created_at', 'email', 'phone', 
-            'is_whatsapp', 'first_name', 'last_name'
+            'is_whatsapp', 'is_phone', 'first_name', 'last_name'
         ]
         read_only_fields = ['id', 'created_at']
         extra_kwargs = {
@@ -249,6 +249,15 @@ class SupportSerializer(serializers.ModelSerializer):
             'first_name': {'required': False, 'allow_null': True},
             'last_name': {'required': False, 'allow_null': True},
         }
+
+    def validate(self, data):
+        is_whatsapp = data.get('is_whatsapp', False)
+        is_phone = data.get('is_phone', False)
+
+        if not is_whatsapp and not is_phone:
+            raise serializers.ValidationError("is_whatsapp veya is_phone alanlarından en az biri true olmalıdır.")
+        
+        return data
 
     def validate_priority(self, value):
         valid_priorities = ['low', 'normal', 'high']
@@ -271,20 +280,27 @@ class SupportListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        
-        search_email = instance.email.strip().lower()
-        
+
+        search_email = (instance.email or "").strip().lower()
+
+        if not search_email:
+            representation["first_name"] = None
+            representation["last_name"] = None
+            representation["phone"] = None
+            return representation
+
         user = Users.objects.filter(email__iexact=search_email, is_deleted=False).first()
-        
+
         if user:
             representation['first_name'] = user.first_name
             representation['last_name'] = user.last_name
             representation['phone'] = user.phone
         else:
-            print(f"DEBUG: Kullanıcı bulunamadı! Aranan Email: '{search_email}'")
-            
+            representation['first_name'] = None
+            representation['last_name'] = None
+            representation['phone'] = None
+
         return representation
-    
 
 
 class SupportStatusUpdateSerializer(serializers.ModelSerializer):

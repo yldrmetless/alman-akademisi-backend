@@ -88,3 +88,66 @@ class BlogViewCount(models.Model):
 
     class Meta:
         unique_together = ('user', 'blog_post')
+        
+
+
+class WebPageModel(models.Model):
+    logo_url = models.URLField(max_length=500, null=True, blank=True)
+    
+    logo_public_id = models.CharField(max_length=255, null=True, blank=True)
+    
+    hero_title_first = models.CharField(max_length=255, null=True, blank=True)
+    
+    hero_title_second = models.CharField(max_length=255, null=True, blank=True)
+    
+    hero_title_third = models.CharField(max_length=255, null=True, blank=True)
+    
+    is_deleted = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    type = models.CharField(max_length=50, null=True, blank=True)
+    
+
+
+class WebPageHeroImages(models.Model):
+    webpage = models.ForeignKey(
+        WebPageModel,
+        on_delete=models.CASCADE,
+        related_name="hero_images"
+    )
+
+    image_url = models.URLField(max_length=500)
+    image_public_id = models.CharField(max_length=255)
+
+    order = models.PositiveIntegerField(default=0)
+
+    is_deleted = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+
+
+    
+    
+class CourseGalleryImage(models.Model):
+    image_url = models.URLField(max_length=500)
+    image_public_id = models.CharField(max_length=255)
+
+    is_deleted = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    
+
+class CertificateImage(models.Model):
+    image_url = models.URLField(max_length=500)
+    image_public_id = models.CharField(max_length=255)
+
+    is_deleted = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

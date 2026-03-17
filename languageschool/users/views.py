@@ -28,7 +28,8 @@ from products.models import DigitalProductOrder
 from django.utils import timezone
 from django.core.mail import EmailMessage, get_connection
 from django.conf import settings
-
+from django.db.models import Q
+from django.contrib.auth.hashers import make_password
 
 class RegisterAPIView(APIView):
     def post(self, request):
@@ -66,7 +67,138 @@ class LoginAPIView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    
+
+
+class ForgotPasswordAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        identifier = request.data.get('username_or_email')
+
+        if not identifier:
+            return Response(
+                {"error": "Lütfen kullanıcı adı veya e-posta giriniz."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = Users.objects.get(Q(username=identifier) | Q(email=identifier))
+            
+            if not user.email:
+                return Response(
+                    {"error": "Bu kullanıcıya tanımlı bir e-posta adresi bulunamadı."}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            subject = "Şifre Yenileme Talebi"
+            
+            reset_link = f"{settings.FRONTEND_URL}/reset-password?email={user.email}"
+            full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #007bff;">Şifre Yenileme</h2>
+                <p>Merhaba <strong>{full_name}</strong>,</p>
+                <p>Hesabınız için şifre yenileme talebinde bulunuldu. Aşağıdaki butona tıklayarak yeni şifrenizi belirleyebilirsiniz:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_link}" style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                        Şifremi Sıfırla
+                    </a>
+                </div>
+                <p>Eğer bu talebi siz yapmadıysanız, lütfen bu e-postayı dikkate almayınız.</p>
+                <p style="font-size: 12px; color: #777;">Bağlantı linki: <br>{reset_link}</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <small>Alman Akademisi Güvenlik Ekibi</small>
+            </div>
+            """
+
+            connection = get_connection(
+                host=settings.EMAIL_HOST,
+                port=settings.EMAIL_PORT,
+                username=settings.EMAIL_HOST_USER,
+                password=settings.EMAIL_HOST_PASSWORD,
+                use_tls=settings.EMAIL_USE_TLS,
+            )
+
+            email_obj = EmailMessage(
+                subject=subject,
+                body=html_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email],
+                connection=connection
+            )
+            email_obj.content_subtype = "html"
+            email_obj.send()
+
+            return Response(
+                {"message": "Şifre yenileme bağlantısı e-posta adresinize gönderildi."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except Users.DoesNotExist:
+            return Response(
+                {"error": "Girdiğiniz bilgilere ait bir kullanıcı bulunamadı."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Mail gönderimi sırasında hata oluştu: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+
+class ResetPasswordConfirmAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        # 1. Temel boş alan kontrolleri
+        if not email or not new_password or not confirm_password:
+            return Response(
+                {"error": "E-posta ve şifre alanları zorunludur."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2. Şifre eşleşme kontrolü
+        if new_password != confirm_password:
+            return Response(
+                {"error": "Şifreler birbiriyle eşleşmiyor."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Şifre uzunluk kontrolü (isteğe bağlı)
+        if len(new_password) < 6:
+            return Response(
+                {"error": "Şifre en az 6 karakter olmalıdır."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = Users.objects.get(email=email)
+            
+            # 4. Şifreyi hashleyerek güncelle
+            user.password = make_password(new_password)
+            user.save()
+
+            return Response(
+                {"message": "Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except Users.DoesNotExist:
+            return Response(
+                {"error": "Geçersiz e-posta adresi."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Bir hata oluştu: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     
 
 class EditProfileAPIView(APIView):
@@ -483,10 +615,15 @@ class CreateInfoRequestAPIView(APIView):
                 last_name=last_name,
                 phone=phone
             )
+            
             recipient_list = [email] if email else [settings.DEFAULT_FROM_EMAIL]
 
             try:
                 subject = f"Yeni Bilgi Talebi: {instance.priority.upper()} - {full_name}"
+                
+                whatsapp_status = "Evet" if instance.is_whatsapp else "Hayır"
+                phone_status = "Evet" if instance.is_phone else "Hayır"
+
                 html_content = f"""
                 <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #ddd;">
                     <h2 style="color: #007bff;">Alman Akademisi - Bilgi Talebi Bilgilendirmesi</h2>
@@ -495,6 +632,11 @@ class CreateInfoRequestAPIView(APIView):
                         <strong>Talep Sahibi:</strong> {full_name}<br>
                         <strong>E-posta:</strong> {email or 'Belirtilmemiş'}<br>
                         <strong>Telefon:</strong> {phone or 'Belirtilmemiş'}<br>
+                        <hr style="border: 0; border-top: 1px solid #ccc; margin: 10px 0;">
+                        <strong>İletişim Tercihleri:</strong><br>
+                        - WhatsApp: {whatsapp_status}<br>
+                        - Telefon: {phone_status}<br>
+                        <hr style="border: 0; border-top: 1px solid #ccc; margin: 10px 0;">
                         <strong>Mesaj:</strong><br>
                         {instance.message}
                     </div>
@@ -530,7 +672,6 @@ class CreateInfoRequestAPIView(APIView):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class SupportListAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUserType]

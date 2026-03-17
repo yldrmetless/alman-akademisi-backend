@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     CreateInfoRequestAPIView,
     CreateSupportAPIView,
+    ForgotPasswordAPIView,
     GoogleReviewListView,
     LoginAPIView,
     MyCourseOrderAPIView,
@@ -9,6 +10,7 @@ from .views import (
     RegisterAPIView,
     EditProfileAPIView,
     MyProfileAPIView,
+    ResetPasswordConfirmAPIView,
     StudentDashAPIView,
     StudentListAPIView,
     SupportListAPIView,
@@ -26,6 +28,10 @@ urlpatterns = [
     path('register/', RegisterAPIView.as_view(), name='auth_register'),
     
     path('login/', LoginAPIView.as_view(), name='auth_login'),
+    
+    path('forgot-password/', ForgotPasswordAPIView.as_view(), name='auth_forgot_password'),
+    
+    path('reset-password/', ResetPasswordConfirmAPIView.as_view(), name='auth_reset_password'),
     
     path('edit-profile/', EditProfileAPIView.as_view(), name='edit_profile'),
     

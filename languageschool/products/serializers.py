@@ -249,5 +249,6 @@ class ProductsOrderListSerializer(serializers.ModelSerializer):
             'product_name',
             'total_amount',
             'status',
-            'refund_requested'
+            'refund_requested',
+            'is_link_send'
         ]

@@ -18,6 +18,7 @@ from products.views import (
     MyDigitalProductsAPIView,
     PayTRCallbackView,
     ProductsOrderListAPIView,
+    SendProductMailAPIView,
     UnifiedOrderCreateAPIView,
     UpdateDigitalProductCategory
 )
@@ -64,4 +65,6 @@ urlpatterns = [
     path('dashboard/', DashboardAPIView.as_view(), name='dashboard_statistics'),
     
     path('create-orders/', UnifiedOrderCreateAPIView.as_view(), name='create_unified_order'),
+    
+    path('send-product-mail/', SendProductMailAPIView.as_view(), name='send_product_mail'),
 ]

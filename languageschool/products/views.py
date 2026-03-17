@@ -37,6 +37,7 @@ from django.db import transaction
 import json
 import time
 from rest_framework.decorators import api_view, permission_classes
+from django.core.mail import EmailMessage
 
 class DigitalProductCreateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUserType]
@@ -924,3 +925,86 @@ def paytr_callback(request):
         DigitalProductOrder.objects.filter(merchant_oid=merchant_oid).update(status='failed')
 
     return HttpResponse("OK")
+
+
+
+class SendProductMailAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUserType]
+
+    def post(self, request):
+        order_id = request.data.get('order_id')
+        product_link = request.data.get('product_link')
+
+        if not order_id or not product_link:
+            return Response(
+                {"error": "order_id and product_link are required fields."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        order_instance = get_object_or_404(DigitalProductOrder, id=order_id)
+
+        if order_instance.status != 'completed':
+            return Response(
+                {"error": f"Mail cannot be sent. Order status is '{order_instance.status}'. Only completed orders are eligible."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = order_instance.user
+        if not user or not user.email:
+            return Response(
+                {"error": "The user associated with this order has no email address."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            subject = f"Ürününüz Hazır: {order_instance.product.name}"
+            
+            full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+            
+            html_content = f"""
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; padding: 25px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <h2 style="color: #2c3e50;">Satın Alımınız İçin Teşekkürler!</h2>
+                <p>Merhaba <strong>{full_name}</strong>,</p>
+                <p>Satın aldığınız <strong>{order_instance.product.name}</strong> ürününe aşağıdaki bağlantıdan erişebilirsiniz:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{product_link}" style="background-color: #27ae60; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        Ürünü İndir / Eriş
+                    </a>
+                </div>
+                
+                <p style="color: #7f8c8d; font-size: 14px;">
+                    Linke alternatif olarak buradan da ulaşabilirsiniz:<br>
+                    <a href="{product_link}">{product_link}</a>
+                </p>
+                
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #bdc3c7;">
+                    Merchant OID: {order_instance.merchant_oid}<br>
+                    Sipariş Tarihi: {order_instance.created_at.strftime('%d.%m.%Y %H:%M')}
+                </p>
+            </div>
+            """
+
+            email = EmailMessage(
+                subject=subject,
+                body=html_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email]
+            )
+            email.content_subtype = "html"
+            email.send()
+            
+            order_instance.is_link_send = True
+            order_instance.save()
+
+            return Response(
+                {"message": f"Product link successfully sent to {user.email}"}, 
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Mail error: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

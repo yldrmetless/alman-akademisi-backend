@@ -35,6 +35,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import F, Count, Q
+from django.core.mail import EmailMessage
+
 
 class CreateExamAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUserType]
@@ -247,6 +249,7 @@ class CourseListAPIView(APIView):
         search_name = request.query_params.get('name', None)
         filter_level = request.query_params.get('level', None)
         filter_type = request.query_params.get('type', None)
+        filter_private = request.query_params.get('is_private_lesson', None)
         ordering = request.query_params.get('ordering', '-created_at')
 
         courses = Course.objects.filter(is_deleted=False).order_by('-created_at')
@@ -283,7 +286,10 @@ class CourseListAPIView(APIView):
 
         if filter_type:
             courses = courses.filter(type=filter_type, is_private_lesson=False)
-            
+
+        if filter_private is not None:
+            is_private = filter_private.lower() == 'true'
+            courses = courses.filter(is_private_lesson=is_private)
             
         if ordering in ['created_at', '-created_at']:
             courses = courses.order_by(ordering)
@@ -577,6 +583,14 @@ class CourseOrdersListAPIView(APIView):
     def get(self, request):
         orders = CourseOrder.objects.all().select_related('user', 'course').order_by('-created_at')
         
+        is_private = request.query_params.get('is_private_lesson')
+        
+        if is_private is not None:
+            if is_private.lower() == 'true':
+                orders = orders.filter(course__is_private_lesson=True)
+            elif is_private.lower() == 'false':
+                orders = orders.filter(course__is_private_lesson=False)
+        
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(orders, request)
         
@@ -586,3 +600,79 @@ class CourseOrdersListAPIView(APIView):
 
         serializer = CourseOrdersListSerializer(orders, many=True)
         return Response(serializer.data)
+    
+    
+
+
+class SendCourseLinkAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUserType]
+
+    def post(self, request):
+        order_id = request.data.get('order_id')
+        course_link = request.data.get('course_link')
+
+        if not order_id or not course_link:
+            return Response(
+                {"error": "order_id ve course_link alanları zorunludur."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        order_instance = get_object_or_404(CourseOrder, id=order_id)
+
+        if order_instance.status != 'completed':
+            return Response(
+                {"error": f"Link gönderilemedi. Sipariş durumu: {order_instance.status}."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = order_instance.user
+        if not user or not user.email:
+            return Response(
+                {"error": "Siparişe bağlı kullanıcı veya e-posta adresi bulunamadı."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            subject = "Eğitim Erişim Linkiniz"
+            full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+            
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eee;">
+                <h2 style="color: #28a745;">Tebrikler!</h2>
+                <p>Merhaba <strong>{full_name}</strong>,</p>
+                <p><strong>{order_instance.course.name}</strong> kursuna erişim linkiniz hazır.</p>
+                <div style="margin: 20px 0; text-align: center;">
+                    <a href="{course_link}" style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                        Eğitime Git
+                    </a>
+                </div>
+                <p>Alternatif link: <br>{course_link}</p>
+                <hr style="border: 0; border-top: 1px solid #eee;">
+                <small>Sipariş No: {order_instance.merchant_oid}</small>
+            </div>
+            """
+
+            email = EmailMessage(
+                subject=subject,
+                body=html_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email]
+            )
+            email.content_subtype = "html"
+            email.send()
+
+            # --- GÜNCELLEME: Sipariş modelindeki alanı true yap ---
+            order_instance.is_link_send = True
+            order_instance.save()
+            # -----------------------------------------------------
+
+            return Response(
+                {"message": f"Link {user.email} adresine gönderildi ve sipariş güncellendi."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Mail hatası: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

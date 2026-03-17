@@ -105,6 +105,7 @@ class SupportModel(models.Model):
     priority = models.CharField(max_length=20, default='normal')
     status = models.CharField(max_length=20, default='open', choices=STATUS_CHOICES)
     is_whatsapp = models.BooleanField(default=False)
+    is_phone = models.BooleanField(default=False)
     phone = models.CharField(max_length=20, null=True, blank=True)
     first_name = models.CharField(max_length=255, null=True, blank=True)
     last_name = models.CharField(max_length=255, null=True, blank=True)

@@ -120,6 +120,8 @@ class DigitalProductOrder(models.Model):
         default='none'
     )
     
+    is_link_send = models.BooleanField(default=False)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

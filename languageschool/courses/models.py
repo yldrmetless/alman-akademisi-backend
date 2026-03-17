@@ -103,12 +103,11 @@ class CourseCategory(models.Model):
         return self.name
 
 
-COURSE_TYPE_ONLINE = 'online'
-COURSE_TYPE_OFFLINE = 'offline'
 
 COURSE_TYPE_CHOICES = [
-    (COURSE_TYPE_ONLINE, 'Online'),
-    (COURSE_TYPE_OFFLINE, 'Offline'),
+    ('online', 'Online'),
+    ('offline', 'Offline'),
+    ('private', 'Private'),
 ]
 
 LEVEL_CHOICES = [
@@ -138,7 +137,7 @@ class Course(models.Model):
     type = models.CharField(
         max_length=10, 
         choices=COURSE_TYPE_CHOICES, 
-        default=COURSE_TYPE_ONLINE
+        default='online'
     )
     level = models.CharField(
         max_length=2, 
@@ -187,6 +186,8 @@ class Course(models.Model):
     )
     
     is_private_lesson = models.BooleanField(default=False)
+    
+    is_link_send = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} - {self.level}"
@@ -253,6 +254,8 @@ class CourseOrder(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    is_link_send = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.merchant_oid:

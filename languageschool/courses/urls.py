@@ -15,7 +15,8 @@ from courses.views import (
     EditCourseCategoryAPIView,
     EditExamAPIView,
     ExamQuestionsListAPIView,
-    LevelExamListAPIView
+    LevelExamListAPIView,
+    SendCourseLinkAPIView
 )
 
 urlpatterns = [
@@ -50,4 +51,6 @@ urlpatterns = [
     path('admin-refund/<str:merchant_oid>/', AdminCourseOrderRefundAPIView.as_view(), name='admin_course_order_refund'),
     
     path('admin-course-orders/', CourseOrdersListAPIView.as_view(), name='admin_course_orders'),
+    
+    path('send-course-link/', SendCourseLinkAPIView.as_view(), name='send_course_link'),
 ]

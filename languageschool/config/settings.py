@@ -132,11 +132,15 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
-        "OPTIONS": {
-            "sslmode": "require",
-        },
+        # "OPTIONS": {
+        #     "sslmode": "require",
+        # },
     }
 }
+if DEBUG:
+    FRONTEND_URL = "http://localhost:3000"
+else:
+    FRONTEND_URL = "https://alman-akademisi-frontend.vercel.app"
 
 
 # Password validation

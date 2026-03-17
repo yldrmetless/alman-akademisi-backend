@@ -433,6 +433,7 @@ class CourseOrdersListSerializer(serializers.ModelSerializer):
     course_type = serializers.CharField(source='course.type', read_only=True)
     
     order_date = serializers.DateTimeField(source='created_at', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    is_private_lesson = serializers.BooleanField(source='course.is_private_lesson', read_only=True)
 
     class Meta:
         model = CourseOrder
@@ -448,6 +449,8 @@ class CourseOrdersListSerializer(serializers.ModelSerializer):
             'total_amount',
             'status',
             'refund_requested',
-            'refund_status'
+            'refund_status',
+            'is_private_lesson',
+            'is_link_send'
         ]
     

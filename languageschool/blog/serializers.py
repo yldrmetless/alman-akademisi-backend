@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import BlogPost, Category, Tag
+from .models import BlogPost, Category, CertificateImage, CourseGalleryImage, Tag, WebPageHeroImages, WebPageModel
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -157,3 +157,175 @@ class BlogEditSerializer(serializers.ModelSerializer):
 
         return instance
     
+
+
+class WebPageHeroImagesCreateSerializer(serializers.Serializer):
+    image_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    image_public_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    order = serializers.IntegerField(required=False, default=0)
+
+
+class WebPageContentCreateSerializer(serializers.ModelSerializer):
+    hero_images = WebPageHeroImagesCreateSerializer(many=True, required=False)
+
+    class Meta:
+        model = WebPageModel
+        fields = [
+            "logo_url",
+            "logo_public_id",
+            "hero_title_first",
+            "hero_title_second",
+            "hero_title_third",
+            "hero_images",
+        ]
+        extra_kwargs = {
+            "logo_url": {"required": False, "allow_null": True, "allow_blank": True},
+            "logo_public_id": {"required": False, "allow_null": True, "allow_blank": True},
+            "hero_title_first": {"required": False, "allow_null": True, "allow_blank": True},
+            "hero_title_second": {"required": False, "allow_null": True, "allow_blank": True},
+            "hero_title_third": {"required": False, "allow_null": True, "allow_blank": True},
+        }
+
+    def create(self, validated_data):
+        hero_images_data = validated_data.pop("hero_images", [])
+
+        logo_url = validated_data.get("logo_url")
+        hero_title_first = validated_data.get("hero_title_first")
+        hero_title_second = validated_data.get("hero_title_second")
+        hero_title_third = validated_data.get("hero_title_third")
+
+        content_type = None
+
+        if hero_images_data:
+            content_type = "hero_images"
+        elif hero_title_first or hero_title_second or hero_title_third:
+            content_type = "hero_title"
+        elif logo_url:
+            content_type = "logo"
+
+        validated_data["type"] = content_type
+
+        webpage = WebPageModel.objects.filter(
+            is_deleted=False,
+            type=content_type
+        ).first()
+
+        if webpage:
+            for attr, value in validated_data.items():
+                setattr(webpage, attr, value)
+            webpage.save()
+
+            if hero_images_data:
+                WebPageHeroImages.objects.filter(
+                    webpage=webpage,
+                    is_deleted=False
+                ).update(is_deleted=True)
+
+                hero_image_objects = []
+                for item in hero_images_data:
+                    image_url = item.get("image_url")
+                    image_public_id = item.get("image_public_id")
+
+                    if image_url or image_public_id:
+                        hero_image_objects.append(
+                            WebPageHeroImages(
+                                webpage=webpage,
+                                image_url=image_url or "",
+                                image_public_id=image_public_id or "",
+                                order=item.get("order", 0)
+                            )
+                        )
+
+                if hero_image_objects:
+                    WebPageHeroImages.objects.bulk_create(hero_image_objects)
+
+            return webpage
+
+        webpage = WebPageModel.objects.create(**validated_data)
+
+        if hero_images_data:
+            hero_image_objects = []
+            for item in hero_images_data:
+                image_url = item.get("image_url")
+                image_public_id = item.get("image_public_id")
+
+                if image_url or image_public_id:
+                    hero_image_objects.append(
+                        WebPageHeroImages(
+                            webpage=webpage,
+                            image_url=image_url or "",
+                            image_public_id=image_public_id or "",
+                            order=item.get("order", 0)
+                        )
+                    )
+
+            if hero_image_objects:
+                WebPageHeroImages.objects.bulk_create(hero_image_objects)
+
+        return webpage
+    
+
+
+class WebPageContentListSerializer(serializers.ModelSerializer):
+    hero_images = WebPageHeroImagesCreateSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = WebPageModel
+        fields = [
+            "id",
+            "type",
+            "logo_url",
+            "logo_public_id",
+            "hero_title_first",
+            "hero_title_second",
+            "hero_title_third",
+            "hero_images",
+            "created_at",
+            "updated_at",
+        ]
+        
+
+class CourseGalleryCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseGalleryImage
+        fields = [
+            "image_url",
+            "image_public_id"
+        ]
+
+
+
+class CourseGalleryListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseGalleryImage
+        fields = [
+            "id",
+            "image_url",
+            "image_public_id",
+            "created_at",
+            "updated_at",
+        ]
+        
+        
+
+
+class CertificateCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CertificateImage
+        fields = [
+            "image_url",
+            "image_public_id"
+        ]
+
+
+
+class CertificateListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CertificateImage
+        fields = [
+            "id",
+            "image_url",
+            "image_public_id",
+            "created_at",
+            "updated_at",
+        ]
