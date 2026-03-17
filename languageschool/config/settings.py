@@ -34,8 +34,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() in ("1", "true", "yes", "on")
 
-ALLOWED_HOSTS = ["*"]
-
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    "alman-akademisi-backend.onrender.com",
+]
 
 # Application definition
 
@@ -52,12 +55,12 @@ INSTALLED_APPS = [
     "users",
     "blog",
     "courses",
-    "products"
+    "products",
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -102,10 +105,10 @@ cloudinary.config(
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-PAYTR_MERCHANT_ID = os.getenv('PAYTR_MERCHANT_ID')
-PAYTR_MERCHANT_KEY = os.getenv('PAYTR_MERCHANT_KEY')
-PAYTR_MERCHANT_SALT = os.getenv('PAYTR_MERCHANT_SALT')
-PAYTR_BASE_URL = os.getenv('PAYTR_BASE_URL', 'https://www.paytr.com/odeme/api/get-token')
+PAYTR_MERCHANT_ID = os.getenv("PAYTR_MERCHANT_ID")
+PAYTR_MERCHANT_KEY = os.getenv("PAYTR_MERCHANT_KEY")
+PAYTR_MERCHANT_SALT = os.getenv("PAYTR_MERCHANT_SALT")
+PAYTR_BASE_URL = os.getenv("PAYTR_BASE_URL", "https://www.paytr.com/odeme/api/get-token")
 
 
 REST_FRAMEWORK = {
@@ -120,6 +123,15 @@ CORS_ALLOWED_ORIGINS = [
     "https://alman-akademisi-frontend.vercel.app",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://alman-akademisi-frontend.vercel.app",
+]
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "authorization",
+]
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -193,10 +205,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST")
 EMAIL_PORT = 587
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 EMAIL_USE_TLS = True
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
