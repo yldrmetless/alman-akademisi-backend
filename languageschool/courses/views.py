@@ -60,6 +60,7 @@ class CreateExamAPIView(APIView):
 
 class LevelExamListAPIView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         level_filter = request.query_params.get('level')
