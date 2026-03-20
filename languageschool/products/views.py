@@ -581,7 +581,7 @@ class AdminOrderRefundAPIView(APIView):
         merchant_id = settings.PAYTR_MERCHANT_ID
         merchant_key = settings.PAYTR_MERCHANT_KEY.encode()
         merchant_salt = settings.PAYTR_MERCHANT_SALT
-        refund_amount = str(int(order.total_amount * 100)) 
+        refund_amount = str(int(order.total_amount))
         
         hash_str = merchant_id + merchant_oid + refund_amount + merchant_salt
         paytr_token = base64.b64encode(
