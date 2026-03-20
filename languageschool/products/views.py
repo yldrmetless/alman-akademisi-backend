@@ -834,7 +834,7 @@ class UnifiedOrderCreateAPIView(APIView):
 
         hash_str = (
             merchant_id + user_ip + master_merchant_oid + user.email + 
-            str(payment_amount_total) + user_basket + "0" + "0" + "TRY" + "1" + merchant_salt
+            str(payment_amount_total) + user_basket + "0" + "0" + "TRY" + "0" + merchant_salt
         )
         paytr_token = base64.b64encode(
             hmac.new(merchant_key, hash_str.encode(), hashlib.sha256).digest()
