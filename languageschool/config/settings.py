@@ -139,7 +139,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-db_options = {"sslmode": "require"} if DEBUG else {}
+db_options = {"sslmode": "require"} if not DEBUG else {}
 
 DATABASES = {
     "default": {
