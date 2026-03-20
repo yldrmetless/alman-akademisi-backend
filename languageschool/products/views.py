@@ -783,115 +783,126 @@ class UnifiedOrderCreateAPIView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        digital_products_data = request.data.get('digital_products', [])
-        courses_data = request.data.get('courses', [])
-        user = request.user
-        
-        initial_status = 'completed' if settings.DEBUG else 'pending'
-        
-        total_payment_amount = 0
-        basket_items = []
-
-        master_merchant_oid = f"ORD{user.id}X{int(time.time())}" 
-
-        for item in courses_data:
-            course = get_object_or_404(Course, id=item['id'])
-            amount = item['amount']
-            price = course.discounted_price if course.discounted_price else course.price
-            
-            CourseOrder.objects.create(
-                user=user,
-                course=course,
-                total_amount=price * amount,
-                status=initial_status,
-                merchant_oid=master_merchant_oid
-            )
-            total_payment_amount += (price * amount)
-            basket_items.append([course.name, str(price), amount])
-
-        for item in digital_products_data:
-            product = get_object_or_404(DigitalProduct, id=item['id'])
-            amount = item['amount']
-            price = product.discounted_price if product.discounted_price else product.price
-            
-            DigitalProductOrder.objects.create(
-                user=user,
-                product=product,
-                total_amount=price * amount,
-                status=initial_status,
-                merchant_oid=master_merchant_oid
-            )
-            total_payment_amount += (price * amount)
-            basket_items.append([product.name, str(price), amount])
-
-        merchant_id = str(settings.PAYTR_MERCHANT_ID)
-        merchant_key = settings.PAYTR_MERCHANT_KEY.encode()
-        merchant_salt = settings.PAYTR_MERCHANT_SALT
-
-        payment_amount_total = int(total_payment_amount * 100)
-        user_ip = request.META.get('REMOTE_ADDR', '127.0.0.1')
-        user_basket = base64.b64encode(json.dumps(basket_items).encode()).decode()
-
-        test_mode = "1" if settings.DEBUG else "0"
-        hash_str = (
-            merchant_id + user_ip + master_merchant_oid + user.email +
-            str(payment_amount_total) + user_basket + "0" + "0" + "TRY" + test_mode + merchant_salt
-        )
-        paytr_token = base64.b64encode(
-            hmac.new(merchant_key, hash_str.encode(), hashlib.sha256).digest()
-        ).decode()
-        
-        user_phone = user.phone if user.phone and str(user.phone).strip() else "0000000000"
-        addr = getattr(user, 'address_data', {}) or {}
-        
-        if addr:
-            formatted_address = f"{addr.get('address_title', 'Adres')}: {addr.get('neighborhood', '')} Mah. {addr.get('full_address', '')} {addr.get('district', '')}/{addr.get('city', '')}"
-        else:
-            formatted_address = "Adres Bilgisi Bulunamadi"
-            
-        test_mode = "1" if settings.DEBUG else "0"
-
-        payload = {
-            'merchant_id': merchant_id,
-            'user_ip': user_ip,
-            'merchant_oid': master_merchant_oid,
-            'email': user.email,
-            'payment_amount': payment_amount_total,
-            'paytr_token': paytr_token,
-            'user_basket': user_basket,
-            'user_name': f"{user.first_name} {user.last_name}",
-            'user_address': formatted_address,
-            'user_phone': user_phone,
-            'merchant_ok_url': f"{settings.FRONTEND_URL}/payment-success",
-            'merchant_fail_url': f"{settings.FRONTEND_URL}/payment-failed",
-            'currency': 'TRY',
-            'test_mode': int(test_mode),
-            'debug_on': 1 if settings.DEBUG else 0,
-            'timeout_limit': 30,
-            'lang': 'tr',
-            'no_installment': 0,
-            'max_installment': 0,
-        }
-
         try:
+            # Env var kontrolü
+            if not all([settings.PAYTR_MERCHANT_ID, settings.PAYTR_MERCHANT_KEY, settings.PAYTR_MERCHANT_SALT]):
+                return Response({
+                    "error": "PAYTR ayarları eksik",
+                    "detail": f"ID:{bool(settings.PAYTR_MERCHANT_ID)} KEY:{bool(settings.PAYTR_MERCHANT_KEY)} SALT:{bool(settings.PAYTR_MERCHANT_SALT)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            digital_products_data = request.data.get('digital_products', [])
+            courses_data = request.data.get('courses', [])
+            user = request.user
+
+            initial_status = 'completed' if settings.DEBUG else 'pending'
+
+            total_payment_amount = 0
+            basket_items = []
+            master_merchant_oid = f"ORD{user.id}X{int(time.time())}"
+
+            for item in courses_data:
+                course = get_object_or_404(Course, id=item['id'])
+                amount = item['amount']
+                price = course.discounted_price if course.discounted_price else course.price
+                CourseOrder.objects.create(
+                    user=user,
+                    course=course,
+                    total_amount=price * amount,
+                    status=initial_status,
+                    merchant_oid=master_merchant_oid
+                )
+                total_payment_amount += (price * amount)
+                basket_items.append([course.name, str(price), str(amount)])
+
+            for item in digital_products_data:
+                product = get_object_or_404(DigitalProduct, id=item['id'])
+                amount = item['amount']
+                price = product.discounted_price if product.discounted_price else product.price
+                DigitalProductOrder.objects.create(
+                    user=user,
+                    product=product,
+                    total_amount=price * amount,
+                    status=initial_status,
+                    merchant_oid=master_merchant_oid
+                )
+                total_payment_amount += (price * amount)
+                basket_items.append([product.name, str(price), str(amount)])
+
+            merchant_id = str(settings.PAYTR_MERCHANT_ID)
+            merchant_key = settings.PAYTR_MERCHANT_KEY.encode()
+            merchant_salt = str(settings.PAYTR_MERCHANT_SALT)
+            payment_amount_total = int(total_payment_amount * 100)
+            user_ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
+            if ',' in user_ip:
+                user_ip = user_ip.split(',')[0].strip()
+            user_basket = base64.b64encode(json.dumps(basket_items).encode()).decode()
+            test_mode = "1" if settings.DEBUG else "0"
+
+            hash_str = (
+                merchant_id + user_ip + master_merchant_oid + user.email +
+                str(payment_amount_total) + user_basket + "0" + "0" + "TRY" + test_mode + merchant_salt
+            )
+            paytr_token = base64.b64encode(
+                hmac.new(merchant_key, hash_str.encode(), hashlib.sha256).digest()
+            ).decode()
+
+            user_phone = user.phone if user.phone and str(user.phone).strip() else "0000000000"
+            addr = getattr(user, 'address_data', {}) or {}
+
+            if addr:
+                formatted_address = f"{addr.get('address_title', 'Adres')}: {addr.get('neighborhood', '')} Mah. {addr.get('full_address', '')} {addr.get('district', '')}/{addr.get('city', '')}"
+            else:
+                formatted_address = "Adres Bilgisi Bulunamadi"
+
+            payload = {
+                'merchant_id': merchant_id,
+                'user_ip': user_ip,
+                'merchant_oid': master_merchant_oid,
+                'email': user.email,
+                'payment_amount': payment_amount_total,
+                'paytr_token': paytr_token,
+                'user_basket': user_basket,
+                'user_name': f"{user.first_name} {user.last_name}",
+                'user_address': formatted_address,
+                'user_phone': str(user_phone),
+                'merchant_ok_url': f"{settings.FRONTEND_URL}/payment-success",
+                'merchant_fail_url': f"{settings.FRONTEND_URL}/payment-failed",
+                'currency': 'TRY',
+                'test_mode': int(test_mode),
+                'debug_on': 1 if settings.DEBUG else 0,
+                'timeout_limit': 30,
+                'lang': 'tr',
+                'no_installment': 0,
+                'max_installment': 0,
+            }
+
             response = requests.post(settings.PAYTR_BASE_URL, data=payload, timeout=10)
-            
-            # 1. ADIM: PayTR'den gelen ham cevabı kontrol et
+
             if response.status_code != 200:
                 return Response({
                     "error": f"PayTR Sunucu Hatası (Kod: {response.status_code})",
-                    "detail": response.text # Burası asıl hatayı söyler
+                    "detail": response.text
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             res_data = response.json()
-            # ... devamı aynı
-            
+
+            if res_data.get('status') == 'success':
+                return Response({'token': res_data.get('token')}, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "error": "PayTR Token Alınamadı",
+                    "detail": res_data.get('reason', 'Bilinmeyen hata')
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
+            import traceback
             return Response({
-                "error": "PayTR Bağlantı Hatası",
+                "error": "Sipariş oluşturma hatası",
                 "detail": str(e),
-                "raw_response": response.text if 'response' in locals() else "Cevap alınamadı"
+                "traceback": traceback.format_exc()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         
 
 @csrf_exempt
