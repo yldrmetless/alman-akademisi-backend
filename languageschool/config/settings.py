@@ -139,7 +139,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-db_options = {"sslmode": "require"} if not DEBUG else {}
+db_options = {"sslmode": "require"} if DEBUG else {}
 
 DATABASES = {
     "default": {
@@ -156,6 +156,7 @@ if DEBUG:
     FRONTEND_URL = "http://localhost:3000"
 else:
     FRONTEND_URL = "https://alman-akademisi-frontend.vercel.app"
+
 
 
 # Password validation

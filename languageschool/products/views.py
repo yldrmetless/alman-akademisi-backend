@@ -862,8 +862,8 @@ class UnifiedOrderCreateAPIView(APIView):
             'merchant_ok_url': "http://localhost:3000/payment-success",
             'merchant_fail_url': "http://localhost:3000/payment-failed",
             'currency': 'TRY',
-            'test_mode': 1,
-            'debug_on': 1,
+            'test_mode': 0,
+            'debug_on': 0,
             'timeout_limit': 30,
             'lang': 'tr',
             'no_installment': 0,
@@ -872,54 +872,53 @@ class UnifiedOrderCreateAPIView(APIView):
 
         try:
             response = requests.post(settings.PAYTR_BASE_URL, data=payload, timeout=10)
-            res_data = response.json()
             
-            if res_data.get('status') == 'success':
+            # 1. ADIM: PayTR'den gelen ham cevabı kontrol et
+            if response.status_code != 200:
                 return Response({
-                    "token": res_data['token'],
-                    "merchant_oid": master_merchant_oid
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": res_data.get('reason')}, status=status.HTTP_400_BAD_REQUEST)
+                    "error": f"PayTR Sunucu Hatası (Kod: {response.status_code})",
+                    "detail": response.text # Burası asıl hatayı söyler
+                }, status=status.HTTP_400_BAD_REQUEST)
 
+            res_data = response.json()
+            # ... devamı aynı
+            
         except Exception as e:
-            return Response({"error": "PayTR bağlantı hatası"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                "error": "PayTR Bağlantı Hatası",
+                "detail": str(e),
+                "raw_response": response.text if 'response' in locals() else "Cevap alınamadı"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def paytr_callback(request):
-    post_data = request.data
+    post_data = request.POST 
     
     merchant_oid = post_data.get('merchant_oid')
     status = post_data.get('status')
     total_amount = post_data.get('total_amount')
     hash_from_paytr = post_data.get('hash')
     
-    hash_str = (
-        merchant_oid + 
-        settings.PAYTR_MERCHANT_SALT + 
-        status + 
-        total_amount
-    )
+    hash_str = merchant_oid + settings.PAYTR_MERCHANT_SALT + status + total_amount
     
-    expected_hash = base64.b64encode(
-        hmac.new(
-            settings.PAYTR_MERCHANT_KEY.encode(), 
-            hash_str.encode(), 
-            hashlib.sha256
-        ).digest()
-    ).decode()
+    hash_hmac = hmac.new(
+        settings.PAYTR_MERCHANT_KEY.encode(), 
+        hash_str.encode(), 
+        hashlib.sha256
+    ).digest()
     
-    is_test_request = settings.DEBUG and post_data.get('test_mode') == '1'
+    expected_hash = base64.b64encode(hash_hmac).decode()
     
-    if hash_from_paytr != expected_hash and not is_test_request:
+    if hash_from_paytr != expected_hash:
         return HttpResponse("PAYTR hash mismatch", status=400)
 
     if status == 'success':
         CourseOrder.objects.filter(merchant_oid=merchant_oid).update(status='completed')
         DigitalProductOrder.objects.filter(merchant_oid=merchant_oid).update(status='completed')
+        
     else:
         CourseOrder.objects.filter(merchant_oid=merchant_oid).update(status='failed')
         DigitalProductOrder.objects.filter(merchant_oid=merchant_oid).update(status='failed')

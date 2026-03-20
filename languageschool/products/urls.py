@@ -20,7 +20,8 @@ from products.views import (
     ProductsOrderListAPIView,
     SendProductMailAPIView,
     UnifiedOrderCreateAPIView,
-    UpdateDigitalProductCategory
+    UpdateDigitalProductCategory,
+    paytr_callback
 )
 
 urlpatterns = [
@@ -65,6 +66,8 @@ urlpatterns = [
     path('dashboard/', DashboardAPIView.as_view(), name='dashboard_statistics'),
     
     path('create-orders/', UnifiedOrderCreateAPIView.as_view(), name='create_unified_order'),
+    
+    path('paytr-callback/', paytr_callback, name='paytr_callback'),
     
     path('send-product-mail/', SendProductMailAPIView.as_view(), name='send_product_mail'),
 ]
